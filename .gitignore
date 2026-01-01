@@ -1,0 +1,36 @@
+node_modules/
+dist/
+*.log
+
+# Output directories from downloads
+*/
+
+# But keep source
+!src/
+
+# Keep config files
+!tsconfig.json
+!package.json
+!package-lock.json
+
+# Keep docs
+!*.md
+!SPEC.md
+!README.md
+
+# Keep the original bash script for reference
+!media-downloader
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+.env

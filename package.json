@@ -1,0 +1,31 @@
+{
+  "name": "media-downloader",
+  "version": "2.0.0",
+  "description": "Downloads images and videos from websites using browser automation",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "media-downloader": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts"
+  },
+  "keywords": ["media", "downloader", "crawler", "scraper", "playwright"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^25.0.3",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "p-queue": "^9.0.1",
+    "playwright": "^1.57.0",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/sharp": "^0.31.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
