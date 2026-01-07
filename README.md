@@ -24,11 +24,37 @@ npx playwright install chromium
 
 ## Usage
 
-### Basic Usage
+### Download Command
+
+Download media from a website:
 
 ```bash
 npm start -- <url> [options]
+npm start -- download <url> [options]
 ```
+
+### Dedup Command
+
+Scan an existing folder for duplicate files and remove them:
+
+```bash
+npm start -- dedup <directory> [options]
+```
+
+This command finds:
+
+1. **Identical files** - Files with the same content (MD5 hash match)
+2. **Visually similar images** - Same image at different resolutions
+
+The highest quality version (by resolution, then file size) is always kept.
+
+#### Dedup Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `<directory>` | Directory to scan | Required |
+| `-v, --verbose` | Verbose output | false |
+| `--dry-run` | Show what would be deleted without deleting | false |
 
 ### Development
 
@@ -43,7 +69,7 @@ npm run build
 node dist/index.js <url> [options]
 ```
 
-## Options
+## Download Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -79,6 +105,12 @@ npm start -- https://example.com -v
 
 # Download with higher concurrency
 npm start -- https://example.com -c 10
+
+# Scan downloads folder for duplicates (dry run first)
+npm start -- dedup ./silvanozeiter.com --dry-run
+
+# Actually delete duplicates
+npm start -- dedup ./silvanozeiter.com
 ```
 
 ## How It Works
@@ -131,15 +163,16 @@ The original bash script (`media-downloader`) had limitations with JavaScript-re
 
 ```
 src/
-├── index.ts           # CLI entry point and main orchestration
-├── types.ts           # TypeScript type definitions
-├── crawler.ts         # Browser automation and URL extraction
-├── downloader.ts      # File download manager with concurrency
-├── deduplicator.ts    # Visual similarity detection
+├── index.ts              # CLI entry point and main orchestration
+├── types.ts              # TypeScript type definitions
+├── crawler.ts            # Browser automation and URL extraction
+├── downloader.ts         # File download manager with concurrency
+├── deduplicator.ts       # Visual similarity detection (during download)
+├── duplicate-scanner.ts  # Standalone duplicate scanner for existing folders
 └── utils/
-    ├── logger.ts      # Colored console logging
-    ├── url-utils.ts   # URL parsing and normalization
-    └── file-utils.ts  # File hashing and image processing
+    ├── logger.ts         # Colored console logging
+    ├── url-utils.ts      # URL parsing and normalization
+    └── file-utils.ts     # File hashing and image processing
 ```
 
 ## Dependencies

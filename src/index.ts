@@ -6,6 +6,7 @@ import path from 'path';
 import { BrowserCrawler } from './crawler.js';
 import { Downloader } from './downloader.js';
 import { VisualDeduplicator } from './deduplicator.js';
+import { DuplicateScanner } from './duplicate-scanner.js';
 import { logger } from './utils/logger.js';
 import { getDomain } from './utils/url-utils.js';
 import { Config, CrawlState } from './types.js';
@@ -15,7 +16,12 @@ const program = new Command();
 program
   .name('media-downloader')
   .description('Downloads images and videos from websites using browser automation')
-  .argument('<url>', 'Source URL to crawl')
+  .version('2.0.0');
+
+// Download command (default)
+program
+  .command('download <url>', { isDefault: true })
+  .description('Download media from a URL')
   .option('-d, --depth <n>', 'Recursion depth (0 = initial page only)', '1')
   .option('-o, --output <dir>', 'Output directory')
   .option('-c, --concurrency <n>', 'Parallel downloads', '5')
@@ -26,16 +32,19 @@ program
   .option('--min-dim <px>', 'Set both min-width and min-height')
   .option('--allow-duplicates', 'Allow duplicate files', false)
   .option('--no-visual-dedup', 'Disable visual similarity detection', false)
-  .version('2.0.0');
+  .action(downloadAction);
+
+// Dedup command
+program
+  .command('dedup <directory>')
+  .description('Scan a directory for duplicate files and remove them')
+  .option('-v, --verbose', 'Verbose output', false)
+  .option('--dry-run', 'Show what would be deleted without deleting', false)
+  .action(dedupAction);
 
 program.parse();
 
-const options = program.opts();
-const args = program.args;
-
-async function main() {
-  let url = args[0];
-
+async function downloadAction(url: string, options: any) {
   // Ensure URL has protocol
   if (!url.match(/^https?:\/\//)) {
     url = `https://${url}`;
@@ -154,6 +163,25 @@ async function main() {
   }
 }
 
+async function dedupAction(directory: string, options: any) {
+  // Resolve to absolute path
+  const absDir = path.resolve(directory);
+
+  logger.setVerbose(options.verbose);
+
+  const scanner = new DuplicateScanner();
+
+  try {
+    await scanner.scan(absDir, {
+      dryRun: options.dryRun,
+      verbose: options.verbose
+    });
+  } catch (error) {
+    logger.error(`Failed: ${error}`);
+    process.exit(1);
+  }
+}
+
 async function countMediaFiles(dir: string): Promise<number> {
   let count = 0;
   const mediaExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov'];
@@ -182,8 +210,3 @@ async function countMediaFiles(dir: string): Promise<number> {
   await walk(dir);
   return count;
 }
-
-main().catch((error) => {
-  logger.error(`Unhandled error: ${error}`);
-  process.exit(1);
-});
