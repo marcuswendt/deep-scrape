@@ -153,7 +153,8 @@ export class BrowserCrawler {
 
     try {
       logger.debug(`Discovering domains from: ${url}`);
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      await page.goto(url, { waitUntil: 'load', timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
       // Extract all URLs from the page
       const allUrls = await page.evaluate(() => {
@@ -227,10 +228,15 @@ export class BrowserCrawler {
     const mediaUrls: string[] = [];
 
     try {
+      // Use 'load' instead of 'networkidle' - many sites have continuous polling
+      // that prevents networkidle from ever resolving
       await page.goto(url, {
-        waitUntil: 'networkidle',
+        waitUntil: 'load',
         timeout: config.timeout * 1000
       });
+
+      // Wait a bit for lazy-loaded content, but don't fail if network stays active
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
       // Extract media URLs
       const extractedMedia = await this.extractMediaUrls(page, url);
@@ -240,7 +246,10 @@ export class BrowserCrawler {
       // If we should crawl deeper, extract and follow links
       if (depth > 0) {
         const links = await this.extractPageLinks(page, url, sourceDomain);
-        logger.debug(`Found ${links.length} page links to crawl`);
+        logger.info(`Found ${links.length} page links to crawl`);
+        for (const l of links.slice(0, 10)) {
+          logger.debug(`  Link: ${l}`);
+        }
 
         for (const link of links) {
           const linkMediaUrls = await this.crawlPage(
