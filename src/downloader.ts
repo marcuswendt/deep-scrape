@@ -70,13 +70,8 @@ export class Downloader {
       return;
     }
 
-    const domain = getDomain(url);
-    if (!this.state.allowedDomains.has(domain)) {
-      logger.debug(`Skipping (domain not allowed): ${domain}`);
-      return;
-    }
-
     this.state.downloadedUrls.add(url);
+    const domain = getDomain(url);
 
     const domainDir = path.join(this.config.outputDir, domain);
     await fs.mkdir(domainDir, { recursive: true });

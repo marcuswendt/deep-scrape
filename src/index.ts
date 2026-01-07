@@ -124,10 +124,11 @@ async function downloadAction(url: string, options: any) {
     logger.info('Discovering allowed domains...');
     state.allowedDomains = await crawler.discoverAllowedDomains(url);
 
-    logger.info('Allowed domains:');
+    logger.info('Discovered CDN domains:');
     for (const domain of state.allowedDomains) {
       logger.info(`  - ${domain}`);
     }
+    logger.debug('(All media from crawled pages will be downloaded)')
     console.log('');
 
     // Create downloader and start crawling
