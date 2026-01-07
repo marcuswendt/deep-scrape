@@ -175,43 +175,41 @@ export class DuplicateScanner {
       }
     }
 
-    // Find similar images using transitive clustering
-    // If A~B and B~C, then A, B, C are all in the same group
-    const filesWithHash = imageFiles.filter(f => f.visualHash);
+    // Sort by quality first so we compare against highest quality images
+    const filesWithHash = imageFiles
+      .filter(f => f.visualHash)
+      .sort((a, b) => {
+        const pixelDiff = (b.pixels || 0) - (a.pixels || 0);
+        if (pixelDiff !== 0) return pixelDiff;
+        return b.size - a.size;
+      });
+
     const used = new Set<number>();
     const duplicates: DuplicateGroup[] = [];
 
+    // For each high-quality image, find all lower-quality duplicates
     for (let i = 0; i < filesWithHash.length; i++) {
       if (used.has(i)) continue;
 
-      const group: FileInfo[] = [filesWithHash[i]];
+      const reference = filesWithHash[i];
+      const group: FileInfo[] = [reference];
       used.add(i);
 
-      // Keep expanding group until no more matches found
-      let foundNew = true;
-      while (foundNew) {
-        foundNew = false;
-        for (let j = 0; j < filesWithHash.length; j++) {
-          if (used.has(j)) continue;
+      // Find all images similar to THIS reference image only
+      // Don't use transitive matching - each duplicate must match the reference
+      for (let j = i + 1; j < filesWithHash.length; j++) {
+        if (used.has(j)) continue;
 
-          // Check if j is similar to ANY member of the group
-          const matchesGroup = group.some(member =>
-            areVisuallySimular(member.visualHash!, filesWithHash[j].visualHash!)
-          );
-
-          if (matchesGroup) {
-            group.push(filesWithHash[j]);
-            used.add(j);
-            foundNew = true;
-          }
+        if (areVisuallySimular(reference.visualHash!, filesWithHash[j].visualHash!)) {
+          group.push(filesWithHash[j]);
+          used.add(j);
         }
       }
 
       if (group.length >= 2) {
-        const sorted = this.sortByQuality(group);
         duplicates.push({
-          original: sorted[0],
-          duplicates: sorted.slice(1),
+          original: group[0],
+          duplicates: group.slice(1),
           reason: 'visual'
         });
       }

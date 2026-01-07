@@ -16,10 +16,6 @@ interface ImageInfo {
 
 export class VisualDeduplicator {
   async deduplicate(outputDir: string, dryRun: boolean = false): Promise<number> {
-    if (dryRun) {
-      return 0;
-    }
-
     logger.info('Scanning for duplicate images...');
 
     // Find all image files
@@ -82,7 +78,7 @@ export class VisualDeduplicator {
 
     // Step 3: Find visual duplicates (same image, different resolution)
     const stillRemaining = await this.findImageFiles(outputDir);
-    totalRemoved += await this.removeVisualDuplicates(stillRemaining);
+    totalRemoved += await this.removeVisualDuplicates(stillRemaining, dryRun);
 
     if (totalRemoved > 0) {
       logger.info(`Removed ${totalRemoved} duplicate images`);
@@ -185,13 +181,14 @@ export class VisualDeduplicator {
     return removed;
   }
 
-  private async removeVisualDuplicates(imageFiles: string[]): Promise<number> {
+  private async removeVisualDuplicates(imageFiles: string[], dryRun: boolean = false): Promise<number> {
     const imageInfos: Array<{
       path: string;
       hash: string;
       pixels: number;
       size: number;
     }> = [];
+    const corruptFiles: string[] = [];
 
     for (const filepath of imageFiles) {
       try {
@@ -208,39 +205,59 @@ export class VisualDeduplicator {
           pixels,
           size: stats.size
         });
-      } catch {
-        // Skip files that can't be processed
+      } catch (error) {
+        // File is likely corrupted
+        const errorMsg = String(error);
+        if (errorMsg.includes('Corrupt') || errorMsg.includes('Invalid') || errorMsg.includes('unsupported')) {
+          corruptFiles.push(filepath);
+        }
       }
     }
 
-    // Find similar images using transitive clustering
-    // If A~B and B~C, then A, B, C are all in the same group
-    const used = new Set<number>();
     let removed = 0;
 
+    // Remove corrupt files
+    if (corruptFiles.length > 0) {
+      logger.info(`Found ${corruptFiles.length} corrupt files`);
+      for (const filepath of corruptFiles) {
+        if (dryRun) {
+          logger.warn(`Would delete (corrupt): ${path.basename(filepath)}`);
+        } else {
+          try {
+            await fs.unlink(filepath);
+            logger.warn(`Deleted (corrupt): ${path.basename(filepath)}`);
+            removed++;
+          } catch {
+            // File may already be deleted
+          }
+        }
+      }
+    }
+
+    // Sort by quality first so we compare against highest quality images
+    imageInfos.sort((a, b) => {
+      if (b.pixels !== a.pixels) return b.pixels - a.pixels;
+      return b.size - a.size;
+    });
+
+    const used = new Set<number>();
+
+    // For each high-quality image, find all lower-quality duplicates
     for (let i = 0; i < imageInfos.length; i++) {
       if (used.has(i)) continue;
 
-      const group = [imageInfos[i]];
+      const reference = imageInfos[i];
+      const group = [reference];
       used.add(i);
 
-      // Keep expanding group until no more matches found
-      let foundNew = true;
-      while (foundNew) {
-        foundNew = false;
-        for (let j = 0; j < imageInfos.length; j++) {
-          if (used.has(j)) continue;
+      // Find all images similar to THIS reference image only
+      // Don't use transitive matching - each duplicate must match the reference
+      for (let j = i + 1; j < imageInfos.length; j++) {
+        if (used.has(j)) continue;
 
-          // Check if j is similar to ANY member of the group
-          const matchesGroup = group.some(member =>
-            areVisuallySimular(member.hash, imageInfos[j].hash)
-          );
-
-          if (matchesGroup) {
-            group.push(imageInfos[j]);
-            used.add(j);
-            foundNew = true;
-          }
+        if (areVisuallySimular(reference.hash, imageInfos[j].hash)) {
+          group.push(imageInfos[j]);
+          used.add(j);
         }
       }
 
@@ -256,18 +273,24 @@ export class VisualDeduplicator {
       logger.debug(`Keeping (visual): ${path.basename(keep.path)}`);
 
       for (let i = 1; i < group.length; i++) {
-        try {
-          await fs.unlink(group[i].path);
-          logger.debug(`Removed (visual duplicate): ${path.basename(group[i].path)}`);
-          removed++;
-        } catch {
-          // File may already be deleted
+        if (dryRun) {
+          logger.warn(`Would delete (visual duplicate): ${path.basename(group[i].path)}`);
+        } else {
+          try {
+            await fs.unlink(group[i].path);
+            logger.debug(`Removed (visual duplicate): ${path.basename(group[i].path)}`);
+            removed++;
+          } catch {
+            // File may already be deleted
+          }
         }
       }
     }
 
     if (removed > 0) {
       logger.info(`Removed ${removed} visual duplicates`);
+    } else if (corruptFiles.length > 0 && dryRun) {
+      // In dry run, count corrupt files as "would be removed"
     }
 
     return removed;
