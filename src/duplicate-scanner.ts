@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from './utils/logger.js';
-import { getFileHash, getVisualHash, getImageDimensions } from './utils/file-utils.js';
+import { getFileHash, getVisualHash, getImageDimensions, areVisuallySimular } from './utils/file-utils.js';
 import { MEDIA_EXTENSIONS } from './types.js';
 
 interface FileInfo {
@@ -148,7 +148,7 @@ export class DuplicateScanner {
   }
 
   /**
-   * Find duplicates using visual hash (same image at different resolutions)
+   * Find duplicates using visual hash with similarity threshold
    */
   private async findVisuallySimilar(files: FileInfo[], excludeHashes: Set<string>): Promise<DuplicateGroup[]> {
     logger.info('Checking for visually similar images (different resolutions)...');
@@ -175,28 +175,35 @@ export class DuplicateScanner {
       }
     }
 
-    // Group by visual hash
-    const visualGroups = new Map<string, FileInfo[]>();
-    for (const file of imageFiles) {
-      if (!file.visualHash) continue;
-      if (!visualGroups.has(file.visualHash)) {
-        visualGroups.set(file.visualHash, []);
-      }
-      visualGroups.get(file.visualHash)!.push(file);
-    }
-
+    // Find similar images using hamming distance clustering
+    const filesWithHash = imageFiles.filter(f => f.visualHash);
+    const used = new Set<number>();
     const duplicates: DuplicateGroup[] = [];
-    for (const [hash, groupFiles] of visualGroups) {
-      if (groupFiles.length < 2) continue;
 
-      // Sort by quality - keep highest resolution/quality
-      const sorted = this.sortByQuality(groupFiles);
+    for (let i = 0; i < filesWithHash.length; i++) {
+      if (used.has(i)) continue;
 
-      duplicates.push({
-        original: sorted[0],
-        duplicates: sorted.slice(1),
-        reason: 'visual'
-      });
+      const group: FileInfo[] = [filesWithHash[i]];
+      used.add(i);
+
+      // Find all similar images
+      for (let j = i + 1; j < filesWithHash.length; j++) {
+        if (used.has(j)) continue;
+
+        if (areVisuallySimular(filesWithHash[i].visualHash!, filesWithHash[j].visualHash!)) {
+          group.push(filesWithHash[j]);
+          used.add(j);
+        }
+      }
+
+      if (group.length >= 2) {
+        const sorted = this.sortByQuality(group);
+        duplicates.push({
+          original: sorted[0],
+          duplicates: sorted.slice(1),
+          reason: 'visual'
+        });
+      }
     }
 
     return duplicates;
