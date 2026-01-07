@@ -84,6 +84,7 @@ node dist/index.js <url> [options]
 | `--min-dim <px>` | Set both min-width and min-height | 0 |
 | `--allow-duplicates` | Allow duplicate files | false |
 | `--no-visual-dedup` | Disable visual similarity detection | false |
+| `--resume` | Skip existing files (resume interrupted download) | false |
 
 ## Examples
 
@@ -105,6 +106,9 @@ npm start -- https://example.com -v
 
 # Download with higher concurrency
 npm start -- https://example.com -c 10
+
+# Resume an interrupted download
+npm start -- https://example.com --resume
 
 # Scan downloads folder for duplicates (dry run first)
 npm start -- dedup ./silvanozeiter.com --dry-run

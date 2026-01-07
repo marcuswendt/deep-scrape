@@ -9,6 +9,7 @@ export interface Config {
   minHeight: number;
   skipDuplicates: boolean;
   visualDedup: boolean;
+  resume: boolean;
   delayMs: number;
   timeout: number;
   maxRetries: number;

@@ -32,6 +32,7 @@ program
   .option('--min-dim <px>', 'Set both min-width and min-height')
   .option('--allow-duplicates', 'Allow duplicate files', false)
   .option('--no-visual-dedup', 'Disable visual similarity detection', false)
+  .option('--resume', 'Skip files that already exist (resume interrupted download)', false)
   .action(downloadAction);
 
 // Dedup command
@@ -65,6 +66,7 @@ async function downloadAction(url: string, options: any) {
     minHeight: options.minDim ? parseInt(options.minDim) : parseInt(options.minHeight),
     skipDuplicates: !options.allowDuplicates,
     visualDedup: options.visualDedup !== false,
+    resume: options.resume,
     delayMs: 100,
     timeout: 30,
     maxRetries: 3
@@ -100,6 +102,10 @@ async function downloadAction(url: string, options: any) {
 
   if (config.visualDedup) {
     logger.info('Visual similarity detection: enabled');
+  }
+
+  if (config.resume) {
+    logger.info('Resume mode: enabled (skipping existing files)');
   }
 
   if (config.dryRun) {

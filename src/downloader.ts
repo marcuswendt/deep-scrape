@@ -83,6 +83,20 @@ export class Downloader {
 
     const filename = getFilenameFromUrl(url);
     let filepath = path.join(domainDir, filename);
+
+    // Check if file already exists (resume mode)
+    if (this.config.resume) {
+      try {
+        const stats = await fs.stat(filepath);
+        if (stats.size > 0) {
+          logger.debug(`Skipping (already exists): ${filename}`);
+          return;
+        }
+      } catch {
+        // File doesn't exist, continue with download
+      }
+    }
+
     filepath = await ensureUniqueFilepath(filepath);
 
     if (this.config.dryRun) {
@@ -128,7 +142,7 @@ export class Downloader {
       const fileHash = await getFileHash(filepath);
       if (this.state.contentHashes.has(fileHash)) {
         logger.debug(`Skipping duplicate: ${filename}`);
-        await fs.unlink(filepath);
+        await fs.unlink(filepath).catch(() => {});
         return;
       }
       this.state.contentHashes.add(fileHash);
@@ -147,7 +161,7 @@ export class Downloader {
           (this.config.minHeight > 0 && height < this.config.minHeight)
         ) {
           logger.debug(`Skipping (too small): ${filename} (${width}x${height})`);
-          await fs.unlink(filepath);
+          await fs.unlink(filepath).catch(() => {});
           return;
         }
       }
