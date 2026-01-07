@@ -188,12 +188,16 @@ export class VisualDeduplicator {
       pixels: number;
       size: number;
     }> = [];
-    const corruptFiles: string[] = [];
 
     for (const filepath of imageFiles) {
       try {
         const hash = await getVisualHash(filepath);
-        if (!hash) continue;
+        if (!hash) {
+          // File couldn't be hashed (may have minor corruption but still viewable)
+          // Skip it for visual dedup but don't delete it
+          logger.debug(`Skipping (could not hash): ${path.basename(filepath)}`);
+          continue;
+        }
 
         const dimensions = await getImageDimensions(filepath);
         const pixels = dimensions ? dimensions.width * dimensions.height : 0;
@@ -206,33 +210,13 @@ export class VisualDeduplicator {
           size: stats.size
         });
       } catch (error) {
-        // File is likely corrupted
-        const errorMsg = String(error);
-        if (errorMsg.includes('Corrupt') || errorMsg.includes('Invalid') || errorMsg.includes('unsupported')) {
-          corruptFiles.push(filepath);
-        }
+        // Skip files that can't be processed but don't delete them
+        // They may still be viewable in browsers which are more lenient
+        logger.debug(`Skipping (processing error): ${path.basename(filepath)}`);
       }
     }
 
     let removed = 0;
-
-    // Remove corrupt files
-    if (corruptFiles.length > 0) {
-      logger.info(`Found ${corruptFiles.length} corrupt files`);
-      for (const filepath of corruptFiles) {
-        if (dryRun) {
-          logger.warn(`Would delete (corrupt): ${path.basename(filepath)}`);
-        } else {
-          try {
-            await fs.unlink(filepath);
-            logger.warn(`Deleted (corrupt): ${path.basename(filepath)}`);
-            removed++;
-          } catch {
-            // File may already be deleted
-          }
-        }
-      }
-    }
 
     // Sort by quality first so we compare against highest quality images
     imageInfos.sort((a, b) => {
@@ -289,8 +273,6 @@ export class VisualDeduplicator {
 
     if (removed > 0) {
       logger.info(`Removed ${removed} visual duplicates`);
-    } else if (corruptFiles.length > 0 && dryRun) {
-      // In dry run, count corrupt files as "would be removed"
     }
 
     return removed;
