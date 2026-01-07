@@ -2,6 +2,7 @@ import { chromium, Browser, Page } from 'playwright';
 import { logger } from './utils/logger.js';
 import { getDomain, normalizeUrl, isMediaUrl } from './utils/url-utils.js';
 import { Config, CrawlState } from './types.js';
+import { Downloader } from './downloader.js';
 
 export class BrowserCrawler {
   private browser: Browser | null = null;
@@ -211,7 +212,8 @@ export class BrowserCrawler {
     depth: number,
     sourceDomain: string,
     state: CrawlState,
-    config: Config
+    config: Config,
+    downloader?: Downloader
   ): Promise<string[]> {
     if (depth < 0 || state.visitedUrls.has(url)) {
       return [];
@@ -241,7 +243,13 @@ export class BrowserCrawler {
       // Extract media URLs
       const extractedMedia = await this.extractMediaUrls(page, url);
       logger.info(`Found ${extractedMedia.length} media files`);
-      mediaUrls.push(...extractedMedia);
+
+      // Start downloading immediately if downloader provided
+      if (downloader) {
+        downloader.queueUrls(extractedMedia);
+      } else {
+        mediaUrls.push(...extractedMedia);
+      }
 
       // If we should crawl deeper, extract and follow links
       if (depth > 0) {
@@ -257,7 +265,8 @@ export class BrowserCrawler {
             depth - 1,
             sourceDomain,
             state,
-            config
+            config,
+            downloader
           );
           mediaUrls.push(...linkMediaUrls);
         }

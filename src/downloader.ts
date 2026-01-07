@@ -179,6 +179,12 @@ export class Downloader {
     }
   }
 
+  queueUrls(urls: string[]): void {
+    for (const url of urls) {
+      this.queue.add(() => this.processDownload(url));
+    }
+  }
+
   async downloadAll(urls: string[]): Promise<void> {
     const uniqueUrls = [...new Set(urls)];
     logger.info(`Queueing ${uniqueUrls.length} files for download...`);

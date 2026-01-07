@@ -130,20 +130,20 @@ async function downloadAction(url: string, options: any) {
     }
     console.log('');
 
-    // Crawl and extract media URLs
-    const mediaUrls = await crawler.crawlPage(
+    // Create downloader and start crawling
+    // Downloads begin immediately as URLs are discovered
+    const downloader = new Downloader(config, state);
+
+    await crawler.crawlPage(
       url,
       config.depth,
       sourceDomain,
       state,
-      config
+      config,
+      downloader
     );
 
-    console.log('');
-
-    // Download files
-    const downloader = new Downloader(config, state);
-    await downloader.downloadAll(mediaUrls);
+    // Wait for all downloads to complete
     await downloader.waitForCompletion();
 
     console.log('');
