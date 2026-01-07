@@ -213,7 +213,8 @@ export class VisualDeduplicator {
       }
     }
 
-    // Find similar images using hamming distance clustering
+    // Find similar images using transitive clustering
+    // If A~B and B~C, then A, B, C are all in the same group
     const used = new Set<number>();
     let removed = 0;
 
@@ -223,13 +224,23 @@ export class VisualDeduplicator {
       const group = [imageInfos[i]];
       used.add(i);
 
-      // Find all similar images
-      for (let j = i + 1; j < imageInfos.length; j++) {
-        if (used.has(j)) continue;
+      // Keep expanding group until no more matches found
+      let foundNew = true;
+      while (foundNew) {
+        foundNew = false;
+        for (let j = 0; j < imageInfos.length; j++) {
+          if (used.has(j)) continue;
 
-        if (areVisuallySimular(imageInfos[i].hash, imageInfos[j].hash)) {
-          group.push(imageInfos[j]);
-          used.add(j);
+          // Check if j is similar to ANY member of the group
+          const matchesGroup = group.some(member =>
+            areVisuallySimular(member.hash, imageInfos[j].hash)
+          );
+
+          if (matchesGroup) {
+            group.push(imageInfos[j]);
+            used.add(j);
+            foundNew = true;
+          }
         }
       }
 

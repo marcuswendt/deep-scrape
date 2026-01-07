@@ -175,7 +175,8 @@ export class DuplicateScanner {
       }
     }
 
-    // Find similar images using hamming distance clustering
+    // Find similar images using transitive clustering
+    // If A~B and B~C, then A, B, C are all in the same group
     const filesWithHash = imageFiles.filter(f => f.visualHash);
     const used = new Set<number>();
     const duplicates: DuplicateGroup[] = [];
@@ -186,13 +187,23 @@ export class DuplicateScanner {
       const group: FileInfo[] = [filesWithHash[i]];
       used.add(i);
 
-      // Find all similar images
-      for (let j = i + 1; j < filesWithHash.length; j++) {
-        if (used.has(j)) continue;
+      // Keep expanding group until no more matches found
+      let foundNew = true;
+      while (foundNew) {
+        foundNew = false;
+        for (let j = 0; j < filesWithHash.length; j++) {
+          if (used.has(j)) continue;
 
-        if (areVisuallySimular(filesWithHash[i].visualHash!, filesWithHash[j].visualHash!)) {
-          group.push(filesWithHash[j]);
-          used.add(j);
+          // Check if j is similar to ANY member of the group
+          const matchesGroup = group.some(member =>
+            areVisuallySimular(member.visualHash!, filesWithHash[j].visualHash!)
+          );
+
+          if (matchesGroup) {
+            group.push(filesWithHash[j]);
+            used.add(j);
+            foundNew = true;
+          }
         }
       }
 
