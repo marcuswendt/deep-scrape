@@ -129,7 +129,7 @@ export class Downloader {
       const stats = await fs.stat(filepath);
       if (stats.size === 0) {
         logger.debug(`Skipping (empty file): ${filename}`);
-        await fs.unlink(filepath);
+        await fs.unlink(filepath).catch(() => {});
         return;
       }
     } catch {
@@ -140,6 +140,10 @@ export class Downloader {
     // Check for duplicate content
     if (this.config.skipDuplicates) {
       const fileHash = await getFileHash(filepath);
+      if (!fileHash) {
+        logger.debug(`Skipping (could not hash): ${filename}`);
+        return;
+      }
       if (this.state.contentHashes.has(fileHash)) {
         logger.debug(`Skipping duplicate: ${filename}`);
         await fs.unlink(filepath).catch(() => {});

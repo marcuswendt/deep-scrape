@@ -112,10 +112,11 @@ export class DuplicateScanner {
 
     // Compute content hashes
     for (const file of files) {
-      try {
-        file.contentHash = await getFileHash(file.filepath);
-      } catch (error) {
-        logger.debug(`Failed to hash ${file.filename}: ${error}`);
+      const hash = await getFileHash(file.filepath);
+      if (hash) {
+        file.contentHash = hash;
+      } else {
+        logger.debug(`Failed to hash ${file.filename}`);
       }
     }
 
