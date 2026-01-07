@@ -6,6 +6,7 @@ import { Downloader } from './downloader.js';
 
 export class BrowserCrawler {
   private browser: Browser | null = null;
+  private shuttingDown = false;
 
   async init() {
     logger.debug('Launching browser...');
@@ -16,10 +17,15 @@ export class BrowserCrawler {
   }
 
   async close() {
+    this.shuttingDown = true;
     if (this.browser) {
-      await this.browser.close();
+      await this.browser.close().catch(() => {});
       this.browser = null;
     }
+  }
+
+  isShuttingDown(): boolean {
+    return this.shuttingDown;
   }
 
   async extractMediaUrls(page: Page, baseUrl: string): Promise<string[]> {
@@ -215,18 +221,25 @@ export class BrowserCrawler {
     config: Config,
     downloader?: Downloader
   ): Promise<string[]> {
-    if (depth < 0 || state.visitedUrls.has(url)) {
+    // Check for shutdown before starting
+    if (this.shuttingDown || depth < 0 || state.visitedUrls.has(url)) {
       return [];
     }
 
     state.visitedUrls.add(url);
     logger.info(`Crawling (depth=${depth}): ${url}`);
 
-    if (!this.browser) {
-      throw new Error('Browser not initialized. Call init() first.');
+    if (!this.browser || this.shuttingDown) {
+      return [];
     }
 
-    const page = await this.browser.newPage();
+    let page;
+    try {
+      page = await this.browser.newPage();
+    } catch {
+      // Browser was closed (likely Ctrl+C)
+      return [];
+    }
     const mediaUrls: string[] = [];
 
     try {
@@ -260,6 +273,9 @@ export class BrowserCrawler {
         }
 
         for (const link of links) {
+          // Check for shutdown between crawls
+          if (this.shuttingDown) break;
+
           const linkMediaUrls = await this.crawlPage(
             link,
             depth - 1,
@@ -274,10 +290,12 @@ export class BrowserCrawler {
 
       return mediaUrls;
     } catch (error) {
-      logger.warn(`Could not fetch: ${url} - ${error}`);
+      if (!this.shuttingDown) {
+        logger.warn(`Could not fetch: ${url} - ${error}`);
+      }
       return mediaUrls;
     } finally {
-      await page.close();
+      await page.close().catch(() => {});
     }
   }
 }

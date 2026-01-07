@@ -116,6 +116,18 @@ async function downloadAction(url: string, options: any) {
 
   const crawler = new BrowserCrawler();
 
+  // Handle Ctrl+C gracefully
+  const shutdown = async () => {
+    if (!crawler.isShuttingDown()) {
+      console.log('');
+      logger.warn('Shutting down gracefully...');
+      await crawler.close();
+      process.exit(0);
+    }
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
   try {
     // Initialize browser
     await crawler.init();
